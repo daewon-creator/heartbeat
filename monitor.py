@@ -8,6 +8,7 @@ import aiohttp
 import json
 import logging
 from datetime import datetime
+import pytz
 from config import settings
 import requests
 
@@ -90,10 +91,14 @@ class APIMonitor:
             try:
                 health_result = await self.check_api_health()
                 current_status = health_result['status']
-                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                
+                # 한국 시간대로 변환
+                kst = pytz.timezone('Asia/Seoul')
+                now_kst = datetime.now(kst)
+                timestamp = now_kst.strftime('%Y-%m-%d %H:%M:%S KST')
                 
                 # 상태가 변경되었거나 매시간 정각일 때만 알림 전송
-                current_minute = datetime.now().minute
+                current_minute = now_kst.minute
                 status_changed = self.last_status != current_status
                 hourly_report = current_minute == 0
                 
