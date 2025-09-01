@@ -87,7 +87,7 @@ class APIMonitor:
         """단일 헬스 체크 실행 (GitHub Actions용)"""
         logger.info("API 헬스 체크 실행...")
         logger.info(f"서버 URL: {self.api_url}")
-        logger.info(f"디스코드 웹훅: {self.discord_webhook[:50]}...")
+        logger.info(f"디스코드 웹훅 전체 URL: {self.discord_webhook}")
         
         try:
             health_result = await self.check_api_health()
@@ -98,34 +98,30 @@ class APIMonitor:
             now_kst = datetime.now(kst)
             timestamp = now_kst.strftime('%Y-%m-%d %H:%M:%S KST')
             
-            # 상태에 따라 메시지 생성
-            if current_status == 'healthy':
-                message = (
-                    f"💚 **API 정상 체크** 💚\n"
-                    f"🕐 **시간**: {timestamp}\n"
-                    f"✅ **상태**: 정상 작동 중\n"
-                    f"⚡ **응답시간**: {health_result.get('response_time', 'unknown')}\n"
-                    f"🌐 **서버**: {self.api_url}"
-                )
-            elif current_status == 'down':
-                message = (
-                    f"🔴 **API 서버 다운** 🔴\n"
-                    f"🕐 **시간**: {timestamp}\n"
-                    f"💀 **상태**: 서버 응답 없음\n"
-                    f"❌ **에러**: {health_result.get('error', 'Unknown error')}\n"
-                    f"🌐 **서버**: {self.api_url}"
-                )
-            else:  # unhealthy
-                message = (
-                    f"⚠️ **API 문제 발생** ⚠️\n"
-                    f"🕐 **시간**: {timestamp}\n"
-                    f"🟡 **상태**: 서버 응답 불량\n"
-                    f"❌ **에러**: {health_result.get('error', 'Unknown error')}\n"
-                    f"🌐 **서버**: {self.api_url}"
-                )
-            
-            self.send_discord_notification(message)
+            # 통신이 안될 때만 디스코드로 알림
             logger.info(f"Status: {current_status}")
+            
+            if current_status != 'healthy':
+                if current_status == 'down':
+                    message = (
+                        f"🔴 **API 서버 다운** 🔴\n"
+                        f"🕐 **시간**: {timestamp}\n"
+                        f"💀 **상태**: 서버 응답 없음\n"
+                        f"❌ **에러**: {health_result.get('error', 'Unknown error')}\n"
+                        f"🌐 **서버**: {self.api_url}"
+                    )
+                else:  # unhealthy
+                    message = (
+                        f"⚠️ **API 문제 발생** ⚠️\n"
+                        f"🕐 **시간**: {timestamp}\n"
+                        f"🟡 **상태**: 서버 응답 불량\n"
+                        f"❌ **에러**: {health_result.get('error', 'Unknown error')}\n"
+                        f"🌐 **서버**: {self.api_url}"
+                    )
+                
+                self.send_discord_notification(message)
+            else:
+                logger.info("서버 정상 - 디스코드 알림 생략")
             
         except Exception as e:
             logger.error(f"모니터링 에러: {e}")
