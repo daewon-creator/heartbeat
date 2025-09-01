@@ -83,73 +83,67 @@ class APIMonitor:
         except Exception as e:
             logger.error(f"디스코드 알림 전송 에러: {e}")
     
-    async def monitor_loop(self):
-        """모니터링 메인 루프"""
-        logger.info("독립 모니터링 시작...")
+    async def run_single_check(self):
+        """단일 헬스 체크 실행 (GitHub Actions용)"""
+        logger.info("API 헬스 체크 실행...")
+        logger.info(f"서버 URL: {self.api_url}")
+        logger.info(f"디스코드 웹훅: {self.discord_webhook[:50]}...")
         
-        while True:
-            try:
-                health_result = await self.check_api_health()
-                current_status = health_result['status']
-                
-                # 한국 시간대로 변환
-                kst = pytz.timezone('Asia/Seoul')
-                now_kst = datetime.now(kst)
-                timestamp = now_kst.strftime('%Y-%m-%d %H:%M:%S KST')
-                
-                # 상태가 변경되었거나 매시간 정각일 때만 알림 전송
-                current_minute = now_kst.minute
-                status_changed = self.last_status != current_status
-                hourly_report = current_minute == 0
-                
-                if status_changed or hourly_report:
-                    if current_status == 'healthy':
-                        if status_changed:
-                            message = (
-                                f"💚 **API 복구됨** 💚\n"
-                                f"🕐 **시간**: {timestamp}\n"
-                                f"✅ **상태**: 정상 작동 중\n"
-                                f"⚡ **응답시간**: {health_result.get('response_time', 'unknown')}\n"
-                                f"🌐 **서버**: {self.api_url}"
-                            )
-                        else:  # 정시 보고
-                            message = (
-                                f"💚 **API 정시 체크** 💚\n"
-                                f"🕐 **시간**: {timestamp}\n"
-                                f"✅ **상태**: 정상 작동 중\n"
-                                f"⚡ **응답시간**: {health_result.get('response_time', 'unknown')}\n"
-                                f"🌐 **서버**: {self.api_url}"
-                            )
-                    elif current_status == 'down':
-                        message = (
-                            f"🔴 **API 서버 다운** 🔴\n"
-                            f"🕐 **시간**: {timestamp}\n"
-                            f"💀 **상태**: 서버 응답 없음\n"
-                            f"❌ **에러**: {health_result.get('error', 'Unknown error')}\n"
-                            f"🌐 **서버**: {self.api_url}"
-                        )
-                    else:  # unhealthy
-                        message = (
-                            f"⚠️ **API 문제 발생** ⚠️\n"
-                            f"🕐 **시간**: {timestamp}\n"
-                            f"🟡 **상태**: 서버 응답 불량\n"
-                            f"❌ **에러**: {health_result.get('error', 'Unknown error')}\n"
-                            f"🌐 **서버**: {self.api_url}"
-                        )
-                    
-                    self.send_discord_notification(message)
-                
-                self.last_status = current_status
-                logger.info(f"Status: {current_status}")
-                
-            except Exception as e:
-                logger.error(f"모니터링 에러: {e}")
-                
-            await asyncio.sleep(self.check_interval)
+        try:
+            health_result = await self.check_api_health()
+            current_status = health_result['status']
+            
+            # 한국 시간대로 변환
+            kst = pytz.timezone('Asia/Seoul')
+            now_kst = datetime.now(kst)
+            timestamp = now_kst.strftime('%Y-%m-%d %H:%M:%S KST')
+            
+            # 상태에 따라 메시지 생성
+            if current_status == 'healthy':
+                message = (
+                    f"💚 **API 정상 체크** 💚\n"
+                    f"🕐 **시간**: {timestamp}\n"
+                    f"✅ **상태**: 정상 작동 중\n"
+                    f"⚡ **응답시간**: {health_result.get('response_time', 'unknown')}\n"
+                    f"🌐 **서버**: {self.api_url}"
+                )
+            elif current_status == 'down':
+                message = (
+                    f"🔴 **API 서버 다운** 🔴\n"
+                    f"🕐 **시간**: {timestamp}\n"
+                    f"💀 **상태**: 서버 응답 없음\n"
+                    f"❌ **에러**: {health_result.get('error', 'Unknown error')}\n"
+                    f"🌐 **서버**: {self.api_url}"
+                )
+            else:  # unhealthy
+                message = (
+                    f"⚠️ **API 문제 발생** ⚠️\n"
+                    f"🕐 **시간**: {timestamp}\n"
+                    f"🟡 **상태**: 서버 응답 불량\n"
+                    f"❌ **에러**: {health_result.get('error', 'Unknown error')}\n"
+                    f"🌐 **서버**: {self.api_url}"
+                )
+            
+            self.send_discord_notification(message)
+            logger.info(f"Status: {current_status}")
+            
+        except Exception as e:
+            logger.error(f"모니터링 에러: {e}")
+            # 에러 발생시에도 디스코드로 알림
+            kst = pytz.timezone('Asia/Seoul')
+            now_kst = datetime.now(kst)
+            timestamp = now_kst.strftime('%Y-%m-%d %H:%M:%S KST')
+            error_message = (
+                f"💥 **모니터링 스크립트 에러** 💥\n"
+                f"🕐 **시간**: {timestamp}\n"
+                f"❌ **에러**: {str(e)}\n"
+                f"🌐 **서버**: {self.api_url}"
+            )
+            self.send_discord_notification(error_message)
 
 async def main():
     monitor = APIMonitor()
-    await monitor.monitor_loop()
+    await monitor.run_single_check()
 
 if __name__ == "__main__":
     asyncio.run(main())
